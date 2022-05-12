@@ -23,4 +23,11 @@ cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -GNinja
 ninja
 ```
 
-Just skip the -GNinja if Ninja build is not available.
+Or when using GNU make:
+
+```
+mkdir build
+cd ./build
+cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+make -j9
+```
