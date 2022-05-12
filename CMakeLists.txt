@@ -34,8 +34,9 @@ cmake_minimum_required(VERSION 3.1)
 
 project(myhh)
 
-set(_SOURCES main.cpp)
-set(_HEADERS main.h)
+set(CMAKE_CXX_STANDARD 17)
+set(_SOURCES handmadehero_sdl2.cpp)
+# set(_HEADERS main.h)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
