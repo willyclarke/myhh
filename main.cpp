@@ -71,9 +71,10 @@ int main(int argc, char **argv)
 
    dumpSDLversions();
 
-   if (PLAYGROUND_OK == setupSDL2())
-   {
-      do_work();
+  if (PLAYGROUND_OK == setupSDL2()) {
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Handmade Hero",
+                             "This is Handmade Hero", 0);
+    do_work();
 
       shutdownSDL2();
    }
