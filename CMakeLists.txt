@@ -32,7 +32,7 @@
 
 cmake_minimum_required(VERSION 3.1)
 
-project(SDL2-minimal)
+project(myhh)
 
 set(_SOURCES main.cpp)
 set(_HEADERS main.h)
@@ -88,4 +88,4 @@ set(DOCSOURCES COPYING LICENSE)
 add_custom_target(rootdoc SOURCES ${DOCSOURCES})
 install(FILES ${DOCSOURCES} DESTINATION .)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION bin) 
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)
