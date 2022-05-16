@@ -10,6 +10,7 @@
  * https://davidgow.net/handmadepenguin
  * ******************************************************************************/
 #include <SDL.h>
+#include <sys/mman.h>
 
 #include <atomic>
 #include <cassert>
@@ -29,19 +30,27 @@ struct window_data {
   std::atomic<int> ScreenWidth{};
   std::atomic<int> ScreenHeight{};
 
-  std::atomic<int> TextureWidth{};
+  std::atomic<int> BitmapWidth{};
+  std::atomic<int> BitmapHeight{};
+  std::atomic<int> BytesPerPixel{4};
   SDL_Texture *Texture{nullptr};
-  std::atomic<bool> TextureUpdated{};
+  std::atomic<bool> BitmapUpdated{};
 
-  void *Pixels{nullptr};
+  void *BitmapMemory{nullptr};
 
   window_data() {}
   ~window_data()
   {
-    std::cerr << __PRETTY_FUNCTION__ << " -> Called. Pixels: " << Pixels << std::endl;
-    if (Pixels) {
-      std::cerr << __PRETTY_FUNCTION__ << " -> Will free Pixels ptr." << std::endl;
-      free(Pixels);
+    std::cerr << __PRETTY_FUNCTION__ << " -> Called. Pixels: " << BitmapMemory << std::endl;
+    if (BitmapMemory) {
+      if (BitmapMemory) {
+        std::cerr << __PRETTY_FUNCTION__ << " -> Will free Pixels ptr." << std::endl;
+        munmap(BitmapMemory,       //!<
+               BitmapWidth *       //!<
+                   BitmapHeight *  //!<
+                   BytesPerPixel  //!<
+        );
+      }
     }
   }
 };
@@ -63,17 +72,27 @@ internal void SDLResizeTexture(window_data *ptrWindowData,  //!<
                                              Height                        //!<
   );
 
-  ptrWindowData->TextureWidth = Width;
+  void *BitmapMemory = mmap(nullptr,                                         //!< Pointer to start
+                            Width * Height * ptrWindowData->BytesPerPixel,  //!<
+                            PROT_READ | PROT_WRITE,                          //!<  Protection
+                            MAP_ANONYMOUS | MAP_PRIVATE,                     //!<  Flags
+                            -1,  //!<  File descriptor, -1 when we dont want to map a file.
+                            0    //!<  Offset
+  );
 
-  void *Pixels = malloc(Width * Height * 4);
-
-  if (ptrWindowData->Pixels) {
-    free(ptrWindowData->Pixels);
+  if (ptrWindowData->BitmapMemory) {
+    munmap(ptrWindowData->BitmapMemory,       //!<
+           ptrWindowData->BitmapWidth *       //!<
+               ptrWindowData->BitmapHeight *  //!<
+               ptrWindowData->BytesPerPixel  //!<
+    );
   }
 
-  ptrWindowData->Pixels = Pixels;
+  ptrWindowData->BitmapWidth = Width;
+  ptrWindowData->BitmapHeight = Height;
+  ptrWindowData->BitmapMemory = BitmapMemory;
 
-  ptrWindowData->TextureUpdated = ptrWindowData->Pixels != nullptr;
+  ptrWindowData->BitmapUpdated = ptrWindowData->BitmapMemory != nullptr;
 }
 
 //------------------------------------------------------------------------------
@@ -85,16 +104,16 @@ internal void SDLUpdateWindow(window_data *ptrWindowData,  //!<
   //------------------------------------------------------------------------------
   // NOTE: Return early when the texture has not been resized yet.
   //------------------------------------------------------------------------------
-  if (!ptrWindowData->TextureUpdated) return;
+  if (!ptrWindowData->BitmapUpdated) return;
 
   assert(ptrWindowData->Texture);
   assert(ptrWindowData->Pixels);
   assert(ptrWindowData->TextureWidth);
 
-  if (SDL_UpdateTexture(ptrWindowData->Texture,           //!<
-                        0,                                //!<
-                        ptrWindowData->Pixels,            //!<
-                        ptrWindowData->TextureWidth * 4)  //!<
+  if (SDL_UpdateTexture(ptrWindowData->Texture,                                      //!<
+                        0,                                                           //!<
+                        ptrWindowData->BitmapMemory,                                 //!<
+                        ptrWindowData->BitmapWidth * ptrWindowData->BytesPerPixel)  //!<
   ) {
     char ErrStr[256]{0};
     printf("%s -> Error when updating texture. %s.\n", __FUNCTION__,
@@ -166,7 +185,7 @@ bool HandleEvent(SDL_Event *Event, window_data *ptrWindowData)
           // FIXME: (Willy Clarke) Need to figure out why texture is not available
           //                       to the Render in the SDLUpdateWindow call below.
           // ---
-          if (!ptrWindowData->TextureUpdated) return (ShouldQuit);
+          if (!ptrWindowData->BitmapUpdated) return (ShouldQuit);
 
           SDLUpdateWindow(ptrWindowData, Renderer);
         } break;
