@@ -2,7 +2,7 @@
 
 ## In brief
 
-The Handmade here project is a fantastic project by Casey Muratori.
+The Handmade Hero project is a fantastic project by Casey Muratori.
 
 Check it out on 'https://handmadehero.org'
 
@@ -11,6 +11,12 @@ The actual code from the HH project will not be checked in. You can buy that fro
 
 As a starter on OSX I will utilize the code from https://github.com/BeagleJoe/SDL2-minimal.git
 Many thanks to BeagleJoe for providing this as a starting point.
+
+## Dependencies
+
+The platform layer utilize Simple DirectMedia Layer 2 for the platform layer. (https://www.libsdl.org/index.php).
+
+Although it is not really in the spirit of Casey to use build tools this project use CMake for generation of build files.
 
 ## Building the code
 
