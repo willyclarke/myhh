@@ -11,73 +11,201 @@
  * ******************************************************************************/
 #include <SDL.h>
 
-#include <cstdio> // for printf
+#include <atomic>
+#include <cassert>
+#include <cstdio>   // for printf
+#include <cstdlib>  // for malloc
 #include <iostream>
+#include <memory>
+
+#define internal static
+#define local_persist static
+#define global_variable static
+
+namespace
+{
+
+struct window_data {
+  std::atomic<int> ScreenWidth{};
+  std::atomic<int> ScreenHeight{};
+
+  std::atomic<int> TextureWidth{};
+  SDL_Texture *Texture{nullptr};
+  std::atomic<bool> TextureUpdated{};
+
+  void *Pixels{nullptr};
+
+  window_data() {}
+  ~window_data()
+  {
+    std::cerr << __PRETTY_FUNCTION__ << " -> Called. Pixels: " << Pixels << std::endl;
+    if (Pixels) {
+      std::cerr << __PRETTY_FUNCTION__ << " -> Will free Pixels ptr." << std::endl;
+      free(Pixels);
+    }
+  }
+};
+
+//------------------------------------------------------------------------------
+internal void SDLResizeTexture(window_data *ptrWindowData,  //!<
+                               SDL_Renderer *Renderer,      //!<
+                               int Width,                   //!<
+                               int Height)
+{
+  if (ptrWindowData->Texture) {
+    SDL_DestroyTexture(ptrWindowData->Texture);
+  }
+
+  ptrWindowData->Texture = SDL_CreateTexture(Renderer,                     //!<
+                                             SDL_PIXELFORMAT_ARGB8888,     //!<
+                                             SDL_TEXTUREACCESS_STREAMING,  //!<
+                                             Width,                        //!<
+                                             Height                        //!<
+  );
+
+  ptrWindowData->TextureWidth = Width;
+
+  void *Pixels = malloc(Width * Height * 4);
+
+  if (ptrWindowData->Pixels) {
+    free(ptrWindowData->Pixels);
+  }
+
+  ptrWindowData->Pixels = Pixels;
+
+  ptrWindowData->TextureUpdated = ptrWindowData->Pixels != nullptr;
+}
+
+//------------------------------------------------------------------------------
+internal void SDLUpdateWindow(window_data *ptrWindowData,  //!<
+                              SDL_Renderer *Renderer       //!<
+                                                           //
+)
+{
+  //------------------------------------------------------------------------------
+  // NOTE: Return early when the texture has not been resized yet.
+  //------------------------------------------------------------------------------
+  if (!ptrWindowData->TextureUpdated) return;
+
+  assert(ptrWindowData->Texture);
+  assert(ptrWindowData->Pixels);
+  assert(ptrWindowData->TextureWidth);
+
+  if (SDL_UpdateTexture(ptrWindowData->Texture,           //!<
+                        0,                                //!<
+                        ptrWindowData->Pixels,            //!<
+                        ptrWindowData->TextureWidth * 4)  //!<
+  ) {
+    char ErrStr[256]{0};
+    printf("%s -> Error when updating texture. %s.\n", __FUNCTION__,
+           SDL_GetErrorMsg(ErrStr, sizeof(ErrStr)));
+    return;
+  }
+
+  if (SDL_RenderCopy(Renderer,                //!<
+                     ptrWindowData->Texture,  //!<
+                     nullptr,                 //!<
+                     nullptr)                 //!<
+  ) {
+    char ErrStr[256]{0};
+    printf("%s -> Error when doing RenderCopy. %s.\n", __FUNCTION__,
+           SDL_GetErrorMsg(ErrStr, sizeof(ErrStr)));
+    return;
+  }
+
+  SDL_RenderPresent(Renderer);
+}
 
 /**
  * Event handler.
  */
-bool HandleEvent(SDL_Event *Event) {
+bool HandleEvent(SDL_Event *Event, window_data *ptrWindowData)
+{
   bool ShouldQuit = false;
   switch (Event->type) {
-  case SDL_QUIT: {
-    std::printf("SDL_QUIT\n");
-    ShouldQuit = true;
-  } break;
-  case SDL_WINDOWEVENT: {
-    switch (Event->window.event) {
-    case SDL_WINDOWEVENT_RESIZED: {
-      printf("SDL_WINDOWEVENT_RESIZED (%d, %d)\n", Event->window.data1,
-             Event->window.data2);
+    case SDL_QUIT: {
+      std::printf("SDL_QUIT\n");
+      ShouldQuit = true;
     } break;
-    case SDL_WINDOWEVENT_EXPOSED: {
-      SDL_Window *Window = SDL_GetWindowFromID(Event->window.windowID);
-      SDL_Renderer *Renderer = SDL_GetRenderer(Window);
-      static bool IsWhite = true;
-      if (IsWhite == true) {
-        SDL_SetRenderDrawColor(Renderer, 255, 255, 255, 255);
-        IsWhite = false;
-      } else {
-        SDL_SetRenderDrawColor(Renderer, 0, 0, 0, 255);
-        IsWhite = true;
+    case SDL_WINDOWEVENT: {
+      switch (Event->window.event) {
+          // case SDL_WINDOWEVENT_RESIZED: {
+        case SDL_WINDOWEVENT_SIZE_CHANGED: {
+          printf("SDL_WINDOWEVENT_SIZE_CHANGED (%d, %d)\n",  //!<
+                 Event->window.data1, Event->window.data2);
+
+          SDL_Window *Window = SDL_GetWindowFromID(Event->window.windowID);
+
+          if (!Window) {
+            printf(
+                "SDL_WINDOWEVENT_RESIZED (%d, %d) -> Failed to get pointer to "
+                "Window.\n",
+                Event->window.data1, Event->window.data2);
+            ShouldQuit = true;
+            return ShouldQuit;
+          }
+
+          SDL_Renderer *Renderer = SDL_GetRenderer(Window);
+
+          int Width{}, Height{};
+          SDL_GetWindowSize(Window, &Width, &Height);
+          ptrWindowData->ScreenHeight = Height;
+          ptrWindowData->ScreenWidth = Width;
+
+          SDLResizeTexture(ptrWindowData, Renderer, Event->window.data1, Event->window.data2);
+
+        } break;
+        case SDL_WINDOWEVENT_EXPOSED: {
+          printf("SDL_WINDOWEVENT_EXPOSED (%d, %d)\n",  //!<
+                 Event->window.data1, Event->window.data2);
+
+          SDL_Window *Window = SDL_GetWindowFromID(Event->window.windowID);
+          SDL_Renderer *Renderer = SDL_GetRenderer(Window);
+
+          // ---
+          // FIXME: (Willy Clarke) Need to figure out why texture is not available
+          //                       to the Render in the SDLUpdateWindow call below.
+          // ---
+          if (!ptrWindowData->TextureUpdated) return (ShouldQuit);
+
+          SDLUpdateWindow(ptrWindowData, Renderer);
+        } break;
       }
-
-      SDL_RenderClear(Renderer);
-      SDL_RenderPresent(Renderer);
-
     } break;
-    }
-  } break;
   }
   return (ShouldQuit);
 }
+};  // end of anonymous namespace
 
 /**
  */
-auto main() -> int {
+auto main() -> int
+{
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     std::cerr << "ERR: " << SDL_GetError() << std::endl;
     return -1;
   }
 
-  SDL_Window *Window =
-      SDL_CreateWindow("Handmade Hero", SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE);
+  SDL_Window *Window = SDL_CreateWindow("Handmade Hero", SDL_WINDOWPOS_UNDEFINED,
+                                        SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE);
 
   // Create a "Renderer" for our window.
-  SDL_Renderer *Renderer = SDL_CreateRenderer(Window, //!<
-                                              -1,     //!< Auto detect.
-                                              0 //!< Render flags (if any).
+  SDL_Renderer *Renderer = SDL_CreateRenderer(Window,  //!<
+                                              -1,      //!< Auto detect.
+                                              0        //!< Render flags (if any).
   );
 
+  window_data WindowData{};
+
   for (;;) {
-    SDL_Event Event;
+    SDL_Event Event{};
     SDL_WaitEvent(&Event);
-    if (HandleEvent(&Event)) {
+    if (HandleEvent(&Event, &WindowData)) {
       break;
     }
   }
 
   SDL_Quit();
+
   return 0;
 }
