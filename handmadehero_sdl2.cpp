@@ -195,22 +195,24 @@ internal void RenderWeirdGradient(window_data *ptrWindowData,  //!<
                                   int const GreenOffset = 0    //!<
 )
 {
-  // int const Pitch = ptrWindowData->BitmapWidth * ptrWindowData->BytesPerPixel;
+  int const Pitch = ptrWindowData->BitmapWidth * ptrWindowData->BytesPerPixel;
 
-  uint8_t *ptrBitmapMemory = (uint8_t *)ptrWindowData->ptrBitmapMemory;
-  uint32_t *Pixel = (uint32_t *)ptrBitmapMemory;
+  uint8_t *ptrRow = (uint8_t *)ptrWindowData->ptrBitmapMemory;
 
   for (size_t Row = 0;                     ///<!
        Row < ptrWindowData->BitmapHeight;  ///<!
        ++Row) {
+    uint32_t *Pixel = (uint32_t *)ptrRow;
+
     for (size_t Col = 0;                    ///<!
          Col < ptrWindowData->BitmapWidth;  ///<!
          ++Col) {
       uint8_t const Blue = Row + BlueOffset;
       uint8_t const Green = Col + GreenOffset;
-      *Pixel = (Green << 8) | Blue;
-      ++Pixel;
+      *Pixel++ = (Green << 8) | Blue;
     }
+
+    ptrRow += Pitch;
   }
 }
 
