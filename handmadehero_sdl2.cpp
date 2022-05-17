@@ -27,30 +27,29 @@ namespace
 {
 
 struct window_data {
-  std::atomic<int> ScreenWidth{};
-  std::atomic<int> ScreenHeight{};
+  int ScreenWidth{};
+  int ScreenHeight{};
+  int BitmapWidth{};
+  int BitmapHeight{};
+  int BytesPerPixel{4};
 
-  std::atomic<int> BitmapWidth{};
-  std::atomic<int> BitmapHeight{};
-  std::atomic<int> BytesPerPixel{4};
-  SDL_Texture *Texture{nullptr};
-  std::atomic<bool> BitmapUpdated{};
+  bool BitmapUpdated{};
 
-  void *BitmapMemory{nullptr};
+  SDL_Texture *ptrTexture{nullptr};
+
+  void *ptrBitmapMemory{nullptr};
 
   window_data() {}
   ~window_data()
   {
-    std::cerr << __PRETTY_FUNCTION__ << " -> Called. Pixels: " << BitmapMemory << std::endl;
-    if (BitmapMemory) {
-      if (BitmapMemory) {
-        std::cerr << __PRETTY_FUNCTION__ << " -> Will free Pixels ptr." << std::endl;
-        munmap(BitmapMemory,       //!<
-               BitmapWidth *       //!<
-                   BitmapHeight *  //!<
-                   BytesPerPixel  //!<
-        );
-      }
+    std::cerr << __PRETTY_FUNCTION__ << " -> Called. Pixels: " << ptrBitmapMemory << std::endl;
+    if (ptrBitmapMemory) {
+      std::cerr << __PRETTY_FUNCTION__ << " -> Will free Pixels ptr." << std::endl;
+      munmap(ptrBitmapMemory,    //!<
+             BitmapWidth *       //!<
+                 BitmapHeight *  //!<
+                 BytesPerPixel   //!<
+      );
     }
   }
 };
